@@ -82,7 +82,7 @@ fn main() {
 
 - `rust-core`：直接调用 `crates/wxml-parser-core` 中的 `parse_json` / `parse_for_eslint_json`
 - `napi`：通过当前包入口 `loader.js` 调用 `parse` / `parseForESLint`
-- `js-parser`：调用 `../wxml-parser/lib/index.js` 中的 JS 版本 `parse` / `parseForESLint`
+- `js-parser`：调用已安装的 `@wxml/parser` 包中的 `parse` / `parseForESLint`
 
 运行方式：
 
@@ -91,8 +91,9 @@ npm run bench
 ```
 
 > 前置条件：
+> - 先在当前仓库执行 `npm install`
 > - 先在 `wxml-parser-rust` 下执行 `npm run build`
-> - 先在 `../wxml-parser` 下执行 `npm run build`
+> - JS baseline 使用 `devDependencies` 中安装的 `@wxml/parser`，不再依赖仓库外的本地构建产物
 
 ### Benchmark methodology
 
@@ -154,7 +155,7 @@ Summary check:
 }
 ```
 
-当前这组数据说明：在这份 fixture 和当前机器上，旧版 JS parser 明显更快；`napi` 相比直接调用 Rust core 还会额外承担一层 Node/Rust 边界成本。后续如果继续优化 Rust 版本，可以直接复用 `npm run bench` 跟踪趋势。
+当前这组数据说明：在这份 fixture 和当前机器上，npm 包版本的 JS parser 明显更快；`napi` 相比直接调用 Rust core 还会额外承担一层 Node/Rust 边界成本。后续如果继续优化 Rust 版本，可以直接复用 `npm run bench` 跟踪趋势。
 
 ## 多平台产物聚合（bindings）
 

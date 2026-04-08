@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const _ = require("lodash");
 
-const { parse } = require("../wxml-parser-rust");
+const { parse } = require("..");
 
 describe("Root Program Test Suite", () => {
   it("program node properties check", () => {

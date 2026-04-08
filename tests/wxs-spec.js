@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const _ = require("lodash");
 const esquery = require("esquery");
 
-const { parse } = require("../wxml-parser-rust");
+const { parse } = require("..");
 
 describe('WXS Test Suite', () => {
   it("should allow set wxs as sub wxml node", () => {

@@ -5,7 +5,7 @@ const { expect } = require("chai");
 const _ = require("lodash");
 const esquery = require("esquery");
 
-const { parse, parseForESLint } = require("../wxml-parser-rust");
+const { parse, parseForESLint } = require("..");
 
 /**
  * Read Fixtures folder wxml file

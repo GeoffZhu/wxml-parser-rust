@@ -3,12 +3,10 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const rustPackageRoot = path.resolve(__dirname, "..", "..");
-const repoRoot = path.resolve(rustPackageRoot, "..");
 const fixturePath = path.join(rustPackageRoot, "tests", "fixtures", "bench", "complex-mixed-large.wxml");
-const jsParserEntry = path.join(repoRoot, "wxml-parser", "lib", "index.js");
 
 const napiParser = require("../..");
-const jsParser = require(jsParserEntry);
+const jsParser = require("@wxml/parser");
 
 const warmup = 4;
 const rounds = 8;
@@ -177,10 +175,6 @@ function renderSummaryBlock(mode, results) {
 }
 
 function main() {
-  if (!fs.existsSync(jsParserEntry)) {
-    throw new Error(`missing JS parser build output: ${jsParserEntry}`);
-  }
-
   const code = readFixture();
   const environment = {
     fixture: path.relative(rustPackageRoot, fixturePath),
