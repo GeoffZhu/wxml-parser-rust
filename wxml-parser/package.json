@@ -1,0 +1,55 @@
+{
+  "name": "@wxml/parser",
+  "version": "0.4.0",
+  "description": "A fast and tolerant wxml parser",
+  "type": "commonjs",
+  "main": "lib/index.js",
+  "keywords": [
+    "wxml",
+    "parser",
+    "wechat",
+    "wexin",
+    "miniprogram"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wxmlfile/wxml-parser.git"
+  },
+  "author": "iChenLei <chenleicoder@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "email": "chenleicoder+npm@gmail.com",
+    "url": "https://github.com/wxmlfile/wxml-parser/issues"
+  },
+  "scripts": {
+    "prepare": "husky install",
+    "prebuild": "rm -rf ./dist && rm -rf ./lib",
+    "build": "tsc && rollup -c",
+    "postbuild": "rm -rf ./dist",
+    "format": "prettier  \"./src\" --write ",
+    "pretest": "npm run build",
+    "prepublish": "npm run build",
+    "test": "npm run puretest",
+    "puretest": "mocha tests/ --require chai --bail --check-leaks"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@rollup/plugin-alias": "^3.1.5",
+    "@rollup/plugin-commonjs": "^21.0.0",
+    "@rollup/plugin-node-resolve": "^13.0.5",
+    "@rollup/plugin-typescript": "^8.2.5",
+    "@types/mocha": "^9.0.0",
+    "chai": "^4.3.4",
+    "chevrotain": "^9.0.2",
+    "espree": "^9.0.0",
+    "esquery": "^1.4.0",
+    "husky": "^7.0.2",
+    "lodash": "^4.17.21",
+    "lodash-es": "^4.17.21",
+    "mocha": "^9.1.3",
+    "prettier": "^2.5.1",
+    "rollup": "^2.58.0",
+    "tslib": "^2.3.1",
+    "typescript": "^4.4.3"
+  }
+}
