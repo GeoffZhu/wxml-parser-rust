@@ -12,6 +12,7 @@ jobs:
   publish-core:
     name: publish-wxml-parser
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - uses: actions/checkout@v4

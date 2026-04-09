@@ -91,9 +91,10 @@ npm run bench
 ```
 
 > 前置条件：
+>
 > - 先在当前仓库执行 `npm install`
 > - 先在 `wxml-parser-rust` 下执行 `npm run build`
-> - JS baseline 使用 `devDependencies` 中安装的 `@wxml/parser`，不再依赖仓库外的本地构建产物
+> - JS baseline 使用 `devDependencies` 中安装的 `@wxml/parser`
 
 ### Benchmark methodology
 
@@ -121,10 +122,10 @@ npm run bench
 ### parse
 
 | Implementation | Median ms/op | Avg ms/op | ops/sec | Relative |
-| --- | ---: | ---: | ---: | ---: |
-| rust-core | 7.553 | 7.561 | 132.3 | 0.04x |
-| napi | 8.577 | 8.587 | 116.5 | 0.04x |
-| js-parser | 0.326 | 0.325 | 3073.3 | 1.00x |
+| -------------- | -----------: | --------: | ------: | -------: |
+| rust-core      |        7.553 |     7.561 |   132.3 |    0.04x |
+| napi           |        8.577 |     8.587 |   116.5 |    0.04x |
+| js-parser      |        0.326 |     0.325 |  3073.3 |    1.00x |
 
 Summary check:
 
@@ -139,10 +140,10 @@ Summary check:
 ### parseForESLint
 
 | Implementation | Median ms/op | Avg ms/op | ops/sec | Relative |
-| --- | ---: | ---: | ---: | ---: |
-| rust-core | 8.134 | 8.178 | 122.3 | 0.04x |
-| napi | 9.264 | 9.312 | 107.4 | 0.04x |
-| js-parser | 0.356 | 0.361 | 2767.0 | 1.00x |
+| -------------- | -----------: | --------: | ------: | -------: |
+| rust-core      |        8.134 |     8.178 |   122.3 |    0.04x |
+| napi           |        9.264 |     9.312 |   107.4 |    0.04x |
+| js-parser      |        0.356 |     0.361 |  2767.0 |    1.00x |
 
 Summary check:
 
