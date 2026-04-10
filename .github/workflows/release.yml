@@ -69,7 +69,7 @@ jobs:
         run: npm ci
 
       - name: Download all binding artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -140,7 +140,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Download all binding artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
