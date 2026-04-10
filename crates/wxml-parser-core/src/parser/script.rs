@@ -27,14 +27,14 @@ impl<'a> Parser<'a> {
       Some(v) => v.to_string(),
       None => String::new(),
     };
-    let (start_line, start_col) = if let Some(start_tag) = &node.start_tag {
-      let loc = self.span_to_loc(&start_tag.span);
-      (loc.end_line, loc.end_col)
+    let (base_line, base_col) = if let Some(start_tag) = &node.start_tag {
+      // end_col is 1-indexed exclusive; convert to 0-indexed for ESTree
+      (start_tag.span.end_line, start_tag.span.end_col.saturating_sub(1))
     } else {
-      (1, 1)
+      (1, 0)
     };
 
-    match parse_inline_js_program(&value, start_line, start_col) {
+    match parse_inline_js_program(&value, base_line, base_col) {
       Ok(program) => {
         node.body = Some(program);
         node.error = None;
@@ -115,14 +115,14 @@ impl<'a> Parser<'a> {
 
 fn byte_to_line_col(s: &str, byte_pos: usize) -> (usize, usize) {
   let mut line = 1usize;
-  let mut col = 1usize;
+  let mut col = 0usize;
   for (i, ch) in s.char_indices() {
     if i >= byte_pos {
       break;
     }
     if ch == '\n' {
       line += 1;
-      col = 1;
+      col = 0;
     } else {
       col += 1;
     }
@@ -130,11 +130,11 @@ fn byte_to_line_col(s: &str, byte_pos: usize) -> (usize, usize) {
   (line, col)
 }
 
-fn to_abs_loc(start_line: usize, start_col: usize, rel_line: usize, rel_col: usize) -> (usize, usize) {
+fn to_abs_loc(base_line: usize, base_col: usize, rel_line: usize, rel_col: usize) -> (usize, usize) {
   if rel_line <= 1 {
-    (start_line, start_col + rel_col.saturating_sub(1))
+    (base_line, base_col + rel_col)
   } else {
-    (start_line + rel_line - 1, rel_col)
+    (base_line + rel_line - 1, rel_col)
   }
 }
 
@@ -166,18 +166,18 @@ fn collect_member_expression_spans_from_expr(expr: &Expression<'_>, out: &mut Ve
 
 fn parse_inline_js_program(
   value: &str,
-  start_line: usize,
-  start_col: usize,
+  base_line: usize,
+  base_col: usize,
 ) -> Result<ScriptProgramIr, (String, usize, usize)> {
   if value.is_empty() {
     return Ok(ScriptProgramIr {
       body: vec![],
       comments: vec![],
       loc: ScriptLocIr {
-        start_line,
-        start_col,
-        end_line: start_line,
-        end_col: start_col,
+        start_line: base_line,
+        start_col: base_col,
+        end_line: base_line,
+        end_col: base_col,
       },
     });
   }
@@ -187,7 +187,7 @@ fn parse_inline_js_program(
   let parsed = OxcParser::new(&allocator, value, source_type).parse();
 
   if !parsed.errors.is_empty() {
-    return Err(("Unexpected token".to_string(), start_line, start_col));
+    return Err(("Unexpected token".to_string(), base_line, base_col));
   }
 
   let mut body = vec![];
@@ -202,8 +202,8 @@ fn parse_inline_js_program(
   for (s, e) in member_spans {
     let (sl_rel, sc_rel) = byte_to_line_col(value, s as usize);
     let (el_rel, ec_rel) = byte_to_line_col(value, e as usize);
-    let (sl, sc) = to_abs_loc(start_line, start_col, sl_rel, sc_rel);
-    let (el, ec) = to_abs_loc(start_line, start_col, el_rel, ec_rel);
+    let (sl, sc) = to_abs_loc(base_line, base_col, sl_rel, sc_rel);
+    let (el, ec) = to_abs_loc(base_line, base_col, el_rel, ec_rel);
     body.push(ScriptBodyIr::MemberExpression {
       loc: ScriptLocIr {
         start_line: sl,
@@ -219,10 +219,10 @@ fn parse_inline_js_program(
     let span = c.span;
     let (sl_rel, sc_rel) = byte_to_line_col(value, span.start as usize);
     let (el_rel, ec_rel) = byte_to_line_col(value, span.end as usize);
-    let (sl, sc) = to_abs_loc(start_line, start_col, sl_rel, sc_rel);
-    let (el, ec) = to_abs_loc(start_line, start_col, el_rel, ec_rel);
+    let (sl, sc) = to_abs_loc(base_line, base_col, sl_rel, sc_rel);
+    let (el, ec) = to_abs_loc(base_line, base_col, el_rel, ec_rel);
 
-    let typ = if c.is_line() { "line" } else { "Block" }.to_string();
+    let typ = if c.is_line() { "Line" } else { "Block" }.to_string();
 
     comments.push(ScriptCommentIr {
       typ,
@@ -235,21 +235,31 @@ fn parse_inline_js_program(
     });
   }
 
-  let lines: Vec<&str> = value.split('\n').collect();
-  let (end_line, end_col) = if lines.len() == 1 {
-    (start_line, start_col + lines[0].len())
+  // WXScriptProgram loc spans from first statement start to last statement end
+  let (prog_start_line, prog_start_col) = if let Some(first) = parsed.program.body.first() {
+    let span = first.span();
+    let (rl, rc) = byte_to_line_col(value, span.start as usize);
+    to_abs_loc(base_line, base_col, rl, rc)
   } else {
-    (start_line + lines.len() - 1, lines.last().map(|s| s.len() + 1).unwrap_or(1))
+    (base_line, base_col)
+  };
+
+  let (prog_end_line, prog_end_col) = if let Some(last) = parsed.program.body.last() {
+    let span = last.span();
+    let (rl, rc) = byte_to_line_col(value, span.end as usize);
+    to_abs_loc(base_line, base_col, rl, rc)
+  } else {
+    (base_line, base_col)
   };
 
   Ok(ScriptProgramIr {
     body,
     comments,
     loc: ScriptLocIr {
-      start_line,
-      start_col,
-      end_line,
-      end_col,
+      start_line: prog_start_line,
+      start_col: prog_start_col,
+      end_line: prog_end_line,
+      end_col: prog_end_col,
     },
   })
 }
