@@ -1,6 +1,6 @@
 {
   "name": "wxml-parser-rs",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Rust + napi-rs implementation of @wxml/parser",
   "license": "MIT",
   "type": "commonjs",
