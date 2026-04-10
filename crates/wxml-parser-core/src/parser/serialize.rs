@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use serde_json::Value;
 
 use super::ir::{
   AttributeIr,
@@ -17,390 +17,416 @@ use super::ir::{
   StartTagIr,
 };
 
+/// Write a usize value to the output string using itoa (faster than `write!`).
+#[inline(always)]
+fn write_u64(n: usize, out: &mut String) {
+  let mut buf = itoa::Buffer::new();
+  out.push_str(buf.format(n));
+}
+
+/// Escape and write a string as JSON string value (including surrounding quotes).
+#[inline(always)]
 fn write_json_str(s: &str, out: &mut String) {
   out.push('"');
-  for ch in s.chars() {
-    match ch {
-      '"' => out.push_str("\\\""),
-      '\\' => out.push_str("\\\\"),
-      '\n' => out.push_str("\\n"),
-      '\r' => out.push_str("\\r"),
-      '\t' => out.push_str("\\t"),
-      c if c.is_control() => write!(out, "\\u{:04x}", c as u32).unwrap(),
-      c => out.push(c),
+  let mut start = 0;
+  let bytes = s.as_bytes();
+  for (i, &b) in bytes.iter().enumerate() {
+    match b {
+      b'"' | b'\\' | b'\n' | b'\r' | b'\t' => {
+        if start < i {
+          out.push_str(&s[start..i]);
+        }
+        match b {
+          b'"' => out.push_str("\\\""),
+          b'\\' => out.push_str("\\\\"),
+          b'\n' => out.push_str("\\n"),
+          b'\r' => out.push_str("\\r"),
+          b'\t' => out.push_str("\\t"),
+          _ => unreachable!(),
+        }
+        start = i + 1;
+      }
+      0x00..=0x1F => {
+        if start < i {
+          out.push_str(&s[start..i]);
+        }
+        // Control characters: write as \uXXXX
+        let hex = match b {
+          0x00 => "0000", 0x01 => "0001", 0x02 => "0002", 0x03 => "0003",
+          0x04 => "0004", 0x05 => "0005", 0x06 => "0006", 0x07 => "0007",
+          0x08 => "0008", 0x0B => "000b", 0x0C => "000c", 0x0E => "000e",
+          0x0F => "000f", 0x10 => "0010", 0x11 => "0011", 0x12 => "0012",
+          0x13 => "0013", 0x14 => "0014", 0x15 => "0015", 0x16 => "0016",
+          0x17 => "0017", 0x18 => "0018", 0x19 => "0019", 0x1A => "001a",
+          0x1B => "001b", 0x1C => "001c", 0x1D => "001d", 0x1E => "001e",
+          0x1F => "001f",
+          _ => unreachable!(),
+        };
+        out.push_str("\\u");
+        out.push_str(hex);
+        start = i + 1;
+      }
+      _ => {}
     }
+  }
+  if start < s.len() {
+    out.push_str(&s[start..]);
   }
   out.push('"');
 }
 
-fn span_to_json_loc(span: &Span, out: &mut String) {
+/// Write start, end, loc, range — the common position block shared by all AST nodes.
+/// This reduces the number of push_str calls by writing the entire tail at once.
+#[inline(always)]
+fn write_pos(start: usize, end: usize, span: &Span, out: &mut String) {
+  out.push_str(",\"start\":");
+  write_u64(start, out);
+  out.push_str(",\"end\":");
+  write_u64(end, out);
+  out.push_str(",\"loc\":");
+  write_loc(span, out);
+  out.push_str(",\"range\":[");
+  write_u64(start, out);
+  out.push(',');
+  write_u64(end, out);
+  out.push(']');
+}
+
+#[inline(always)]
+fn write_loc(span: &Span, out: &mut String) {
   let mut end_col = span.end_col;
   if span.start_idx != span.end_idx {
     end_col = end_col.saturating_sub(1);
   }
-  out.push_str(r#"{"start":{"line:"#);
-  write!(out, "{},\"column\":{}}}", span.start_line, span.start_col).unwrap();
-  out.push_str(r#","end":{"line":"#);
-  write!(out, "{},\"column\":{}}}", span.end_line, end_col).unwrap();
-  out.push('}');
+  out.push_str("{\"start\":{\"line\":");
+  write_u64(span.start_line, out);
+  out.push_str(",\"column\":");
+  write_u64(span.start_col, out);
+  out.push_str("},\"end\":{\"line\":");
+  write_u64(span.end_line, out);
+  out.push_str(",\"column\":");
+  write_u64(end_col, out);
+  out.push_str("}}");
 }
 
-fn serialize_script_loc(loc: &ScriptLocIr, out: &mut String) {
-  out.push_str(r#"{"start":{"line":"#);
-  write!(out, "{},\"column\":{}}}", loc.start_line, loc.start_col).unwrap();
-  out.push_str(r#","end":{"line":"#);
-  write!(out, "{},\"column\":{}}}", loc.end_line, loc.end_col).unwrap();
-  out.push('}');
+fn write_script_loc(loc: &ScriptLocIr, out: &mut String) {
+  out.push_str("{\"start\":{\"line\":");
+  write_u64(loc.start_line, out);
+  out.push_str(",\"column\":");
+  write_u64(loc.start_col, out);
+  out.push_str("},\"end\":{\"line\":");
+  write_u64(loc.end_line, out);
+  out.push_str(",\"column\":");
+  write_u64(loc.end_col, out);
+  out.push_str("}}");
 }
 
-fn serialize_script_body(body: &ScriptBodyIr, out: &mut String) {
+fn write_script_body(body: &ScriptBodyIr, out: &mut String) {
   match body {
     ScriptBodyIr::MemberExpression { loc } => {
-      out.push_str(r#"{"type":"MemberExpression","loc":"#);
-      serialize_script_loc(loc, out);
-      out.push_str(r#","range":[0,0]}"#);
+      out.push_str("{\"type\":\"MemberExpression\",\"loc\":");
+      write_script_loc(loc, out);
+      out.push_str(",\"range\":[0,0]}");
     }
   }
 }
 
-fn serialize_script_comment(comment: &ScriptCommentIr, out: &mut String) {
-  out.push_str(r#"{"type":"#);
+fn write_script_comment(comment: &ScriptCommentIr, out: &mut String) {
+  out.push_str("{\"type\":");
   write_json_str(&comment.typ, out);
-  out.push_str(r#"","loc":"#);
-  serialize_script_loc(&comment.loc, out);
-  out.push_str(r#","range":[0,0]}"#);
+  out.push_str(",\"loc\":");
+  write_script_loc(&comment.loc, out);
+  out.push_str(",\"range\":[0,0]}");
 }
 
-fn serialize_script_program(program: &ScriptProgramIr, out: &mut String) {
-  out.push_str(r#"{"type":"WXScriptProgram","offset":[],"body":["#);
+fn write_script_program(program: &ScriptProgramIr, out: &mut String) {
+  out.push_str("{\"type\":\"WXScriptProgram\",\"offset\":[],\"body\":[");
   let mut first = true;
-  for body in &program.body {
+  for b in &program.body {
     if !first { out.push(','); }
     first = false;
-    serialize_script_body(body, out);
+    write_script_body(b, out);
   }
-  out.push_str(r#"],"comments":["#);
+  out.push_str("],\"comments\":[");
   let mut first = true;
-  for comment in &program.comments {
+  for c in &program.comments {
     if !first { out.push(','); }
     first = false;
-    serialize_script_comment(comment, out);
+    write_script_comment(c, out);
   }
-  out.push_str(r#"],"loc":"#);
-  serialize_script_loc(&program.loc, out);
-  out.push_str(r#","range":[0,0]}"#);
+  out.push_str("],\"loc\":");
+  write_script_loc(&program.loc, out);
+  out.push_str(",\"range\":[0,0]}");
 }
 
-fn serialize_interpolation(interp: &InterpolationIr, out: &mut String) {
-  let (start, end) = (interp.span.start_idx, interp.span.end_idx);
-  out.push_str(r#"{"type":"#);
+fn write_interpolation(interp: &InterpolationIr, out: &mut String) {
+  out.push_str("{\"type\":");
   write_json_str(interp.typ, out);
-  out.push_str(r#"","rawValue":"#);
+  out.push_str(",\"rawValue\":");
   write_json_str(&interp.raw_value, out);
-  out.push_str(r#"","value":"#);
+  out.push_str(",\"value\":");
   write_json_str(interp.value, out);
-  out.push_str(r#"","start":#);
-  write!(out, "{},\"end\":{}", start, end).unwrap();
-  out.push_str(r#","loc":"#);
-  span_to_json_loc(&interp.span, out);
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", start, end).unwrap();
-  out.push(']');
+  write_pos(interp.span.start_idx, interp.span.end_idx, &interp.span, out);
   out.push('}');
 }
 
-fn serialize_attribute(attr: &AttributeIr, out: &mut String) {
-  let (start, end) = (attr.span.start_idx, attr.span.end_idx);
-  out.push_str(r#"{"type":"WXAttribute","key":"#);
+fn write_attribute(attr: &AttributeIr, out: &mut String) {
+  out.push_str("{\"type\":\"WXAttribute\",\"key\":");
   write_json_str(attr.key, out);
-  out.push_str(r#"","quote":"#);
+  out.push_str(",\"quote\":");
   match attr.quote {
     Some(q) => write_json_str(q, out),
     None => out.push_str("null"),
   }
-  out.push_str(r#"","value":"#);
+  out.push_str(",\"value\":");
   match &attr.value {
     Some(v) => write_json_str(v, out),
     None => out.push_str("null"),
   }
-  out.push_str(r#"","rawValue":"#);
+  out.push_str(",\"rawValue\":");
   match &attr.raw_value {
     Some(v) => write_json_str(v, out),
     None => out.push_str("null"),
   }
-  out.push_str(r#"","children":["#);
+  out.push_str(",\"children\":[");
   let mut first = true;
-  for child in &attr.children {
+  for c in &attr.children {
     if !first { out.push(','); }
     first = false;
-    serialize_node(child, out);
+    write_node(c, out);
   }
-  out.push_str(r#"],"interpolations":["#);
+  out.push_str("],\"interpolations\":[");
   let mut first = true;
-  for interp in &attr.interpolations {
+  for i in &attr.interpolations {
     if !first { out.push(','); }
     first = false;
-    out.push_str(r#"{"type":"WXInterpolation","rawValue":"#);
-    write_json_str(&interp.raw_value, out);
-    out.push_str(r#"","value":"#);
-    write_json_str(interp.value, out);
-    out.push_str(r#"","start":#);
-    write!(out, "{},\"end\":{}", interp.span.start_idx, interp.span.end_idx).unwrap();
-    out.push_str(r#","loc":"#);
-    span_to_json_loc(&interp.span, out);
-    out.push_str(r#","range":["#);
-    write!(out, "{},{}", interp.span.start_idx, interp.span.end_idx).unwrap();
-    out.push_str("]}");
+    out.push_str("{\"type\":\"WXInterpolation\",\"rawValue\":");
+    write_json_str(&i.raw_value, out);
+    out.push_str(",\"value\":");
+    write_json_str(i.value, out);
+    write_pos(i.span.start_idx, i.span.end_idx, &i.span, out);
+    out.push_str("}");
   }
-  out.push_str(r#"],"start":#);
-  write!(out, "{},\"end\":{}", start, end).unwrap();
-  out.push_str(r#","loc":"#);
-  span_to_json_loc(&attr.span, out);
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", start, end).unwrap();
   out.push(']');
+  write_pos(attr.span.start_idx, attr.span.end_idx, &attr.span, out);
   out.push('}');
 }
 
-fn serialize_start_tag(tag: &StartTagIr, out: &mut String) {
-  let (start, end) = (tag.span.start_idx, tag.span.end_idx);
-  out.push_str(r#"{"type":"WXStartTag","name":"#);
+fn write_start_tag(tag: &StartTagIr, out: &mut String) {
+  out.push_str("{\"type\":\"WXStartTag\",\"name\":");
   write_json_str(tag.name, out);
-  out.push_str(r#"","attributes":["#);
+  out.push_str(",\"attributes\":[");
   let mut first = true;
-  for attr in &tag.attributes {
+  for a in &tag.attributes {
     if !first { out.push(','); }
     first = false;
-    serialize_attribute(attr, out);
+    write_attribute(a, out);
   }
-  out.push_str(r#"],"selfClosing":#);
+  out.push_str("],\"selfClosing\":");
   out.push_str(if tag.self_closing { "true" } else { "false" });
-  out.push_str(r#","start":#);
-  write!(out, "{},\"end\":{}", start, end).unwrap();
-  out.push_str(r#","loc":"#);
-  span_to_json_loc(&tag.span, out);
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", start, end).unwrap();
-  out.push(']');
+  write_pos(tag.span.start_idx, tag.span.end_idx, &tag.span, out);
   out.push('}');
 }
 
-fn serialize_end_tag(tag: &EndTagIr, out: &mut String) {
-  let (start, end) = (tag.span.start_idx, tag.span.end_idx);
-  out.push_str(r#"{"type":"WXEndTag","name":"#);
+fn write_end_tag(tag: &EndTagIr, out: &mut String) {
+  out.push_str("{\"type\":\"WXEndTag\",\"name\":");
   write_json_str(tag.name, out);
-  out.push_str(r#"","start":#);
-  write!(out, "{},\"end\":{}", start, end).unwrap();
-  out.push_str(r#","loc":"#);
-  span_to_json_loc(&tag.span, out);
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", start, end).unwrap();
-  out.push(']');
+  write_pos(tag.span.start_idx, tag.span.end_idx, &tag.span, out);
   out.push('}');
 }
 
-fn serialize_script_error(err: &ScriptErrorIr, out: &mut String) {
-  let (start, end) = (err.span.start_idx, err.span.end_idx);
-  out.push_str(r#"{"type":"WXScriptError","value":"#);
+fn write_script_error(err: &ScriptErrorIr, out: &mut String) {
+  out.push_str("{\"type\":\"WXScriptError\",\"value\":");
   write_json_str(&err.value, out);
-  out.push_str(r#"","start":#);
-  write!(out, "{},\"end\":{}", start, end).unwrap();
-  out.push_str(r#","loc":{"start":{"line":#);
-  write!(out, "{},\"column\":{}}},\"end\":{{\"line\":{},\"column\":{}}}}}", err.line, err.column, err.line, err.column).unwrap();
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", start, end).unwrap();
-  out.push(']');
-  out.push('}');
+  out.push_str(",\"start\":");
+  write_u64(err.span.start_idx, out);
+  out.push_str(",\"end\":");
+  write_u64(err.span.end_idx, out);
+  out.push_str(",\"loc\":{\"start\":{\"line\":");
+  write_u64(err.line, out);
+  out.push_str(",\"column\":");
+  write_u64(err.column, out);
+  out.push_str("},\"end\":{\"line\":");
+  write_u64(err.line, out);
+  out.push_str(",\"column\":");
+  write_u64(err.column, out);
+  out.push_str("}},\"range\":[");
+  write_u64(err.span.start_idx, out);
+  out.push(',');
+  write_u64(err.span.end_idx, out);
+  out.push_str("]}");
 }
 
-fn serialize_script_node(script: &ScriptNodeIr, out: &mut String) {
-  let (start, end) = (script.span.start_idx, script.span.end_idx);
-  out.push_str(r#"{"type":"WXScript","name":"#);
+fn write_script_node(script: &ScriptNodeIr, out: &mut String) {
+  out.push_str("{\"type\":\"WXScript\",\"name\":");
   write_json_str(script.name, out);
-  out.push('"');
-  out.push_str(r#","value":"#);
+  out.push_str(",\"value\":");
   match script.value {
     Some(v) => write_json_str(v, out),
     None => out.push_str("null"),
   }
-  out.push_str(r#","startTag":"#);
+  out.push_str(",\"startTag\":");
   match &script.start_tag {
-    Some(t) => serialize_start_tag(t, out),
+    Some(t) => write_start_tag(t, out),
     None => out.push_str("null"),
   }
-  out.push_str(r#","endTag":"#);
+  out.push_str(",\"endTag\":");
   match &script.end_tag {
-    Some(t) => serialize_end_tag(t, out),
+    Some(t) => write_end_tag(t, out),
     None => out.push_str("null"),
   }
   if let Some(body) = &script.body {
-    out.push_str(r#","body":["#);
-    serialize_script_program(body, out);
+    out.push_str(",\"body\":[");
+    write_script_program(body, out);
     out.push(']');
   }
   if let Some(error) = &script.error {
-    out.push_str(r#","error":"#);
-    serialize_script_error(error, out);
+    out.push_str(",\"error\":");
+    write_script_error(error, out);
   }
-  out.push_str(r#","start":#);
-  write!(out, "{},\"end\":{}", start, end).unwrap();
-  out.push_str(r#","loc":"#);
-  span_to_json_loc(&script.span, out);
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", start, end).unwrap();
-  out.push_str("]}");
-}
-
-fn serialize_node(node: &NodeIr, out: &mut String) {
-  match node {
-    NodeIr::Text { value, span } => {
-      let (start, end) = (span.start_idx, span.end_idx);
-      out.push_str(r#"{"type":"WXText","value":"#);
-      write_json_str(value, out);
-      out.push_str(r#"","start":#);
-      write!(out, "{},\"end\":{}", start, end).unwrap();
-      out.push_str(r#","loc":"#);
-      span_to_json_loc(span, out);
-      out.push_str(r#","range":["#);
-      write!(out, "{},{}", start, end).unwrap();
-      out.push_str("]}");
-    }
-    NodeIr::Comment { value, span } => {
-      let (start, end) = (span.start_idx, span.end_idx);
-      out.push_str(r#"{"type":"WXComment","value":"#);
-      write_json_str(value, out);
-      out.push_str(r#"","start":#);
-      write!(out, "{},\"end\":{}", start, end).unwrap();
-      out.push_str(r#","loc":"#);
-      span_to_json_loc(span, out);
-      out.push_str(r#","range":["#);
-      write!(out, "{},{}", start, end).unwrap();
-      out.push_str("]}");
-    }
-    NodeIr::Interpolation(interp) => serialize_interpolation(interp, out),
-    NodeIr::Element {
-      name,
-      children,
-      start_tag,
-      end_tag,
-      span,
-    } => {
-      let (start, end) = (span.start_idx, span.end_idx);
-      out.push_str(r#"{"type":"WXElement","name":"#);
-      write_json_str(name, out);
-      out.push_str(r#"","children":["#);
-      let mut first = true;
-      for child in children {
-        if !first { out.push(','); }
-        first = false;
-        serialize_node(child, out);
-      }
-      out.push_str(r#"],"startTag":"#);
-      match start_tag {
-        Some(t) => serialize_start_tag(t, out),
-        None => out.push_str("null"),
-      }
-      out.push_str(r#","endTag":"#);
-      match end_tag {
-        Some(t) => serialize_end_tag(t, out),
-        None => out.push_str("null"),
-      }
-      out.push_str(r#","start":#);
-      write!(out, "{},\"end\":{}", start, end).unwrap();
-      out.push_str(r#","loc":"#);
-      span_to_json_loc(span, out);
-      out.push_str(r#","range":["#);
-      write!(out, "{},{}", start, end).unwrap();
-      out.push_str("]}");
-    }
-    NodeIr::Script(script) => serialize_script_node(script, out),
-  }
-}
-
-fn serialize_error(err: &ParseErrorIr, out: &mut String) {
-  let span = &err.span;
-  out.push_str(r#"{"type":"#);
-  write_json_str(err.typ, out);
-  out.push('"');
-  if let Some(raw_type) = err.raw_type {
-    out.push_str(r#","rawType":"#);
-    write_json_str(raw_type, out);
-    out.push('"');
-  }
-  out.push_str(r#","value":"#);
-  write_json_str(&err.value, out);
-  out.push_str(r#"","start":#);
-  write!(out, "{},\"end\":{}", span.start_idx, span.end_idx).unwrap();
-  out.push_str(r#","loc":"#);
-  span_to_json_loc(span, out);
-  out.push_str(r#","range":["#);
-  write!(out, "{},{}", span.start_idx, span.end_idx).unwrap();
-  out.push(']');
+  write_pos(script.span.start_idx, script.span.end_idx, &script.span, out);
   out.push('}');
 }
 
-pub(crate) fn serialize_program(program: ParsedProgram) -> serde_json::Value {
+fn write_node(node: &NodeIr, out: &mut String) {
+  match node {
+    NodeIr::Text { value, span } => {
+      out.push_str("{\"type\":\"WXText\",\"value\":");
+      write_json_str(value, out);
+      write_pos(span.start_idx, span.end_idx, span, out);
+      out.push('}');
+    }
+    NodeIr::Comment { value, span } => {
+      out.push_str("{\"type\":\"WXComment\",\"value\":");
+      write_json_str(value, out);
+      write_pos(span.start_idx, span.end_idx, span, out);
+      out.push('}');
+    }
+    NodeIr::Interpolation(interp) => write_interpolation(interp, out),
+    NodeIr::Element { name, children, start_tag, end_tag, span } => {
+      out.push_str("{\"type\":\"WXElement\",\"name\":");
+      write_json_str(name, out);
+      out.push_str(",\"children\":[");
+      let mut first = true;
+      for c in children {
+        if !first { out.push(','); }
+        first = false;
+        write_node(c, out);
+      }
+      out.push_str("],\"startTag\":");
+      match start_tag {
+        Some(t) => write_start_tag(t, out),
+        None => out.push_str("null"),
+      }
+      out.push_str(",\"endTag\":");
+      match end_tag {
+        Some(t) => write_end_tag(t, out),
+        None => out.push_str("null"),
+      }
+      write_pos(span.start_idx, span.end_idx, span, out);
+      out.push('}');
+    }
+    NodeIr::Script(script) => write_script_node(script, out),
+  }
+}
+
+fn write_error(err: &ParseErrorIr, out: &mut String) {
+  out.push_str("{\"type\":");
+  write_json_str(err.typ, out);
+  if let Some(raw_type) = err.raw_type {
+    out.push_str(",\"rawType\":");
+    write_json_str(raw_type, out);
+  }
+  out.push_str(",\"value\":");
+  write_json_str(&err.value, out);
+  write_pos(err.span.start_idx, err.span.end_idx, &err.span, out);
+  out.push('}');
+}
+
+/// Build the JSON string for the program (no serde_json::Value construction).
+pub(crate) fn serialize_program_to_string(program: &ParsedProgram) -> String {
   if program.code_len == 0 {
-    return serde_json::json!({
-      "type": "Program",
-      "body": [],
-      "comments": [],
-      "errors": [],
-      "tokens": [],
-      "start": serde_json::Value::Null,
-      "end": serde_json::Value::Null,
-      "loc": {
-        "start": { "line": serde_json::Value::Null, "column": serde_json::Value::Null },
-        "end": { "line": serde_json::Value::Null, "column": serde_json::Value::Null }
-      },
-      "range": [serde_json::Value::Null, serde_json::Value::Null],
-    });
+    return r#"{"type":"Program","body":[],"comments":[],"errors":[],"tokens":[],"start":null,"end":null,"loc":{"start":{"line":null,"column":null},"end":{"line":null,"column":null}},"range":[null,null]}"#.to_string();
   }
 
-  let mut out = String::with_capacity(program.code_len * 4);
-  out.push_str(r#"{"type":"Program","body":["#);
+  let mut out = String::with_capacity(program.code_len * 3);
+  out.push_str("{\"type\":\"Program\",\"body\":[");
   let mut first = true;
   for node in &program.body {
     if !first { out.push(','); }
     first = false;
-    serialize_node(node, &mut out);
+    write_node(node, &mut out);
   }
-  out.push_str(r#"],"comments":["#);
+  out.push_str("],\"comments\":[");
   let mut first = true;
   for idx in &program.comment_indices {
     if let Some(node) = program.body.get(*idx) {
       if !first { out.push(','); }
       first = false;
-      serialize_node(node, &mut out);
+      write_node(node, &mut out);
     }
   }
-  out.push_str(r#"],"errors":["#);
+  out.push_str("],\"errors\":[");
   let mut first = true;
   for err in &program.errors {
     if !first { out.push(','); }
     first = false;
-    serialize_error(err, &mut out);
+    write_error(err, &mut out);
   }
   out.push_str("],\"tokens\":[],\"start\":0,\"end\":");
-  write!(out, "{}", program.code_len).unwrap();
+  write_u64(program.code_len, &mut out);
   out.push_str(",\"loc\":{\"start\":{\"line\":1,\"column\":1},\"end\":{\"line\":");
-  write!(out, "{},\"column\":{}}}", program.end_line, program.end_col).unwrap();
-  out.push_str(",\"range\":[0,");
-  write!(out, "{}]", program.code_len).unwrap();
-  out.push('}');
+  write_u64(program.end_line, &mut out);
+  out.push_str(",\"column\":");
+  write_u64(program.end_col, &mut out);
+  out.push_str("}},\"range\":[0,");
+  write_u64(program.code_len, &mut out);
+  out.push_str("]}");
 
-  // Parse the string back to Value to maintain API compatibility
-  // This is still faster than building with json!() because we avoid
-  // the massive number of intermediate HashMap allocations
-  serde_json::from_str(&out).unwrap_or_else(|_| serde_json::Value::Null)
+  out
 }
 
-pub(crate) fn serialize_eslint(program: ParsedProgram) -> serde_json::Value {
+/// Build the JSON string for eslint output (no serde_json::Value construction).
+pub(crate) fn serialize_eslint_to_string(program: &ParsedProgram) -> String {
+  let ast_json = serialize_program_to_string(program);
+  let mut out = String::with_capacity(ast_json.len() + 128);
+  out.push_str("{\"ast\":");
+  out.push_str(&ast_json);
+  out.push_str(",\"services\":{},\"scopeManager\":null,\"visitorKeys\":{\"Program\":[\"errors\",\"body\"]}}");
+  out
+}
+
+pub(crate) fn serialize_program(program: ParsedProgram) -> Value {
+  let json_str = serialize_program_to_string(&program);
+  serde_json::from_str(&json_str).unwrap_or_else(|_| {
+    let errors: Vec<Value> = program.errors.iter().map(|e| serde_json::json!({
+      "type": e.typ, "rawType": e.raw_type, "value": e.value,
+      "start": e.span.start_idx, "end": e.span.end_idx,
+      "loc": span_to_json_loc(&e.span),
+      "range": [e.span.start_idx, e.span.end_idx]
+    })).collect();
+    let body: Vec<Value> = program.body.iter().map(|_| serde_json::Value::Null).collect();
+    serde_json::json!({"type":"Program","body":body,"errors":errors})
+  })
+}
+
+fn span_to_json_loc(span: &Span) -> Value {
+  let mut end_col = span.end_col;
+  if span.start_idx != span.end_idx {
+    end_col = end_col.saturating_sub(1);
+  }
+  serde_json::json!({
+    "start": { "line": span.start_line, "column": span.start_col },
+    "end": { "line": span.end_line, "column": end_col }
+  })
+}
+
+pub(crate) fn serialize_eslint(program: ParsedProgram) -> Value {
   let ast = serialize_program(program);
   serde_json::json!({
     "ast": ast,
     "services": {},
-    "scopeManager": serde_json::Value::Null,
+    "scopeManager": Value::Null,
     "visitorKeys": {
       "Program": ["errors", "body"]
     }
