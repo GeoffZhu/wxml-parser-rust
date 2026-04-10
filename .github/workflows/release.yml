@@ -6,7 +6,6 @@ on:
   push:
     tags:
       - 'v*'
-
 jobs:
   build-matrix:
     name: build-${{ matrix.os }}-${{ matrix.target }}
@@ -149,4 +148,4 @@ jobs:
         run: npm run collect:bindings
 
       - name: Publish package
-        run: npm publish --access --provenance public
+        run: npm publish --access public --provenance
