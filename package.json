@@ -1,0 +1,46 @@
+{
+  "name": "wxml-parser-rs",
+  "version": "0.0.1",
+  "description": "Rust + napi-rs implementation of @wxml/parser",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "loader.js",
+  "types": "index.d.ts",
+  "files": [
+    "loader.js",
+    "index.js",
+    "index.d.ts",
+    "bindings/*.node"
+  ],
+  "napi": {
+    "name": "wxml-parser-rs",
+    "triples": {
+      "defaults": true
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "napi build --platform --release --cargo-cwd crates/wxml-parser-napi bindings && mv bindings/index.d.ts . && rm -f bindings/index.js",
+    "build:debug": "napi build --platform --cargo-cwd crates/wxml-parser-napi bindings && mv bindings/index.d.ts . && rm -f bindings/index.js",
+    "collect:bindings": "node scripts/collect-bindings.js",
+    "build:multi": "npm run build && npm run collect:bindings",
+    "build:ci": "npm run build",
+    "test": "mocha tests/ --require chai --bail --check-leaks",
+    "bench": "node tests/benchmark/perf.js",
+    "prepublishOnly": "npm run build:multi && npm test && npm pack --dry-run",
+    "version:bump": "node scripts/bump-version.js"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4",
+    "@wxml/parser": "^0.4.0",
+    "chai": "^4.3.4",
+    "esquery": "^1.4.0",
+    "lodash": "^4.17.21",
+    "mocha": "^9.1.3"
+  }
+}

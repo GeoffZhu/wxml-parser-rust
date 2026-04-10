@@ -1,0 +1,15 @@
+node_modules
+lib
+dist
+.DS_store
+.idea
+src/vscodedebug/test.ts
+package-lock.json
+
+.claude
+.codex
+# Rust 编译缓存
+**/*.rs.bk
+
+# 编译产物
+target

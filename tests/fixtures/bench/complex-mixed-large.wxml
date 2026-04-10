@@ -1,0 +1,79 @@
+<view class="page {{theme}}">
+  <wxs module="fmt">
+    var map = { ok: 'success', fail: 'danger' }
+    function pick(status) {
+      return map[status] || 'default'
+    }
+    module.exports = { pick: pick }
+  </wxs>
+
+  <template name="card">
+    <view class="card card-{{item.type}} {{item.highlight ? 'highlight' : ''}}" data-id="{{item.id}}">
+      <view class="card__header">
+        <text class="card__title">{{item.title}}</text>
+        <text wx:if="{{item.badge}}" class="badge badge-{{item.badge.type}}">{{item.badge.text}}</text>
+      </view>
+      <view class="card__body">
+        <block wx:if="{{item.desc}}">
+          <text class="desc">{{item.desc}}</text>
+        </block>
+        <block wx:elif="{{item.rich}}">
+          <rich-text nodes="{{item.rich}}"></rich-text>
+        </block>
+        <block wx:else>
+          <text class="empty">暂无描述🙂</text>
+        </block>
+      </view>
+      <view class="card__footer">
+        <button wx:for="{{item.actions}}" wx:key="id" class="btn btn-{{index}} {{action.primary ? 'btn-primary' : ''}}" data-action="{{action.id}}">
+          {{action.text}}
+        </button>
+      </view>
+    </view>
+  </template>
+
+  <view class="search-bar">
+    <input value="{{keyword}}" placeholder="搜索 {{placeholder}}" bindinput="onInput" />
+    <button bindtap="onSearch" disabled="{{loading}}">{{loading ? '搜索中' : '搜索'}}🙂</button>
+  </view>
+
+  <scroll-view scroll-y="true" class="content">
+    <block wx:for="{{sections}}" wx:key="id">
+      <view class="section section-{{item.kind}} {{fmt.pick(item.status)}}" id="section-{{item.id}}">
+        <view class="section__header">
+          <text>{{item.name}}</text>
+          <text wx:if="{{item.count > 0}}" class="count">{{item.count}}</text>
+        </view>
+
+        <block wx:if="{{item.banner}}">
+          <swiper autoplay="{{item.banner.autoplay}}" indicator-dots="{{item.banner.dots}}">
+            <swiper-item wx:for="{{item.banner.items}}" wx:key="id">
+              <image src="{{banner.src}}" mode="aspectFill" />
+            </swiper-item>
+          </swiper>
+        </block>
+
+        <block wx:if="{{item.cards && item.cards.length}}">
+          <template is="card" wx:for="{{item.cards}}" wx:key="id" data="{{item: card}}" />
+        </block>
+        <block wx:else>
+          <view class="empty-state">
+            <text>{{item.emptyText || '暂无数据🙂'}}</text>
+          </view>
+        </block>
+
+        <view class="tags">
+          <text wx:for="{{item.tags}}" wx:key="*this" class="tag tag-{{index}}">{{item}}</text>
+        </view>
+      </view>
+    </block>
+  </scroll-view>
+
+  <include src="./partials/footer.wxml" />
+
+  <!-- dashboard footer -->
+  <view class="footer" hidden="{{!showFooter}}">
+    <text>{{summary.total}} 条记录</text>
+    <text>{{summary.updatedAt}}</text>
+  </view>
+</view>

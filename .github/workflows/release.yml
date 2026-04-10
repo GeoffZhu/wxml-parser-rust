@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-matrix:
+    name: build-${{ matrix.os }}-${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: wxml-parser-rs.linux-x64-gnu.node
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: wxml-parser-rs.win32-x64-msvc.node
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact_name: wxml-parser-rs.darwin-x64.node
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact_name: wxml-parser-rs.darwin-arm64.node
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native binding
+        run: npx napi build --target ${{ matrix.target }} --release --cargo-cwd crates/wxml-parser-napi
+
+      - name: Upload binding artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binding-${{ matrix.target }}
+          path: ${{ matrix.artifact_name }}
+          if-no-files-found: error
+
+  collect:
+    name: collect-and-verify
+    runs-on: ubuntu-latest
+    needs: build-matrix
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download all binding artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect bindings into folder
+        run: npm run collect:bindings
+
+      - name: Build local platform binding for tests
+        run: npm run build:ci
+
+      - name: Verify test suite
+        run: npm test
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+  github-release:
+    name: create-github-release
+    runs-on: ubuntu-latest
+    needs: collect
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          version="${{ steps.version.outputs.VERSION }}"
+          # Extract the section for this version from CHANGELOG.md
+          awk "/^## \\[${version}\\]/,/^## \\[/" CHANGELOG.md | head -n -1 | tail -n +2 > release_notes.md
+          # Fallback if no matching section found
+          if [ ! -s release_notes.md ]; then
+            echo "Release v${version}" > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+
+  publish:
+    name: publish-npm
+    runs-on: ubuntu-latest
+    environment: production
+    needs: github-release
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download all binding artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect bindings into folder
+        run: npm run collect:bindings
+
+      - name: Publish package
+        run: npm publish --access public --provenance

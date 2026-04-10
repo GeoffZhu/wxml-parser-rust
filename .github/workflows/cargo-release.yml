@@ -1,0 +1,31 @@
+name: Cargo Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish-core:
+    name: publish-wxml-parser-rs
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run core tests
+        run: cargo test -p wxml-parser-rs
+
+      - name: Dry run publish
+        run: cargo publish --dry-run -p wxml-parser-rs
+
+      - name: Publish to crates.io
+        run: cargo publish -p wxml-parser-rs
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

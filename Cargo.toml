@@ -1,0 +1,27 @@
+[workspace]
+members = [
+  "crates/wxml-parser-core",
+  "crates/wxml-parser-napi",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["zhutaoran"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+anyhow = "1"
+thiserror = "1"
+oxc_allocator = "0.124"
+oxc_parser = "0.124"
+oxc_span = "0.124"
+oxc_ast = "0.124"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

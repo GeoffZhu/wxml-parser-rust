@@ -1,0 +1,27 @@
+[package]
+name = "wxml-parser-napi"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Node-API bindings for wxml-parser-core"
+repository = "https://github.com/GeoffZhu/wxml-parser-rust"
+homepage = "https://github.com/GeoffZhu/wxml-parser-rust"
+readme = "../../README.md"
+rust-version = "1.77"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["serde-json"] }
+napi-derive = "2"
+serde_json = { workspace = true }
+wxml_parser_rs = { package = "wxml-parser-rs", version = "0.0.1", path = "../wxml-parser-core" }
+
+[features]
+default = []
+buffer = []
+
+[build-dependencies]
+napi-build = "2"
