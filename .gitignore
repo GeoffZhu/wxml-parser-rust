@@ -4,7 +4,6 @@ dist
 .DS_store
 .idea
 src/vscodedebug/test.ts
-package-lock.json
 
 .claude
 .codex
