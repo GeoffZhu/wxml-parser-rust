@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a feature for wxml-parser-rust
+about: Suggest a feature for wxml-parser-rs
 title: "[Feature] "
 labels: enhancement
 ---

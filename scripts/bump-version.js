@@ -56,8 +56,8 @@ const files = [
           `version = "${newVersion}"`,
         )
         .replace(
-          /wxml_parser_core\s*=\s*\{\s*package\s*=\s*"wxml-parser",\s*version\s*=\s*"\d+\.\d+\.\d+(-[\w.]+)?"/,
-          `wxml_parser_core = { package = "wxml-parser", version = "${newVersion}"`,
+          /wxml_parser_rs\s*=\s*\{\s*package\s*=\s*"wxml-parser-rs",\s*version\s*=\s*"\d+\.\d+\.\d+(-[\w.]+)?"/,
+          `wxml_parser_rs = { package = "wxml-parser-rs", version = "${newVersion}"`,
         )
     },
   },

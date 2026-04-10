@@ -1,5 +1,5 @@
 use serde_json::Value;
-use wxml_parser_core::parse_json;
+use wxml_parser_rs::parse_json;
 
 fn collect_nodes_by_type<'a>(value: &'a Value, typ: &str, out: &mut Vec<&'a Value>) {
   match value {

@@ -1,4 +1,4 @@
-# Contributing to wxml-parser-rust
+# Contributing to wxml-parser-rs
 
 Thanks for your interest in contributing! Here's how to get started.
 

@@ -15,4 +15,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Compatibility test suite against `@wxml/parser`
 - Benchmark suite comparing rust-core, napi, and js-parser
 
-[0.1.0]: https://github.com/GeoffZhu/wxml-parser-rust/releases/tag/v0.1.0
+[0.1.0]: https://github.com/GeoffZhu/wxml-parser-rs/releases/tag/v0.1.0

@@ -40,7 +40,7 @@ for (const src of sources) {
     : collectFrom(src)
   for (const file of files) {
     const base = path.basename(file)
-    if (!base.startsWith('wxml-parser-rust.') || !base.endsWith('.node')) continue
+    if (!base.startsWith('wxml-parser-rs.') || !base.endsWith('.node')) continue
     const target = path.join(bindingsDir, base)
     fs.copyFileSync(file, target)
     copied.add(base)

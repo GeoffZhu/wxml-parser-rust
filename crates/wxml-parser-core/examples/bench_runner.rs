@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use std::env;
 use std::fs;
 use std::time::Instant;
-use wxml_parser_core::{parse_for_eslint_json, parse_for_eslint_json_string, parse_json, parse_json_string};
+use wxml_parser_rs::{parse_for_eslint_json, parse_for_eslint_json_string, parse_json, parse_json_string};
 
 fn summarize_parse(result: &Value) -> Value {
   json!({

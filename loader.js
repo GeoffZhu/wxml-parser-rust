@@ -32,8 +32,8 @@ let nativeBinding = null
 let loadError = null
 
 const localCandidates = [
-  `wxml-parser-rust.${process.platform}-${process.arch}.node`,
-  'wxml-parser-rust.darwin-universal.node',
+  `wxml-parser-rs.${process.platform}-${process.arch}.node`,
+  'wxml-parser-rs.darwin-universal.node',
 ]
 
 for (const name of localCandidates) {
@@ -52,7 +52,7 @@ if (!nativeBinding && loadError) {
 }
 
 if (!nativeBinding) {
-  nativeBinding = require('./wxml-parser-rust/index.js')
+  nativeBinding = require('./index.js')
 }
 
 const { parse: nativeParse, parseForESLint: nativeParseForESLint } = nativeBinding

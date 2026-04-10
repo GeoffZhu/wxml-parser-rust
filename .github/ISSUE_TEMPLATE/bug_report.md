@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in wxml-parser-rust
+about: Report a bug in wxml-parser-rs
 title: "[Bug] "
 labels: bug
 ---
@@ -25,7 +25,7 @@ What the actual output was.
 
 ## Environment
 
-- wxml-parser-rust version:
+- wxml-parser-rs version:
 - Node.js version:
 - OS:
 - Rust version (if applicable):

@@ -723,7 +723,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 
 [[package]]
-name = "wxml-parser"
+name = "wxml-parser-napi"
+version = "0.0.1"
+dependencies = [
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "serde_json",
+ "wxml-parser-rs",
+]
+
+[[package]]
+name = "wxml-parser-rs"
 version = "0.0.1"
 dependencies = [
  "itoa",
@@ -735,17 +746,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "wxml-parser-napi"
-version = "0.0.1"
-dependencies = [
- "napi",
- "napi-build",
- "napi-derive",
- "serde_json",
- "wxml-parser",
 ]
 
 [[package]]

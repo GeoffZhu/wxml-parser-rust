@@ -1,20 +1,20 @@
-# wxml-parser-rust
+# wxml-parser-rs
 
-`wxml-parser-rust` 是 [`@wxml/parser`](https://www.npmjs.com/package/@wxml/parser) 的 Rust + `napi-rs` 实现，提供：
+`wxml-parser-rs` 是 [`@wxml/parser`](https://www.npmjs.com/package/@wxml/parser) 的 Rust + `napi-rs` 实现，提供：
 
-- Rust 核心解析库（[`wxml-parser`](https://crates.io/crates/wxml-parser)）
+- Rust 核心解析库（[`wxml-parser-rs`](https://crates.io/crates/wxml-parser-rs)）
 - Node.js API（`parse` / `parseForESLint`），附带多平台预编译二进制
 
 ## 安装
 
 ```bash
-npm install wxml-parser-rust
+npm install wxml-parser-rs
 ```
 
 或 Rust 侧：
 
 ```bash
-cargo add wxml-parser
+cargo add wxml-parser-rs
 ```
 
 ## 使用方法
@@ -22,7 +22,7 @@ cargo add wxml-parser
 ### Node.js
 
 ```js
-const { parse, parseForESLint } = require('wxml-parser-rust')
+const { parse, parseForESLint } = require('wxml-parser-rs')
 
 const code = `<view wx:if="{{ok}}">hello</view>`
 
@@ -36,7 +36,7 @@ console.log(eslintAst.ast.type) // Program
 ### Rust
 
 ```rust
-use wxml_parser_core::{parse_json, parse_for_eslint_json};
+use wxml_parser_rs::{parse_json, parse_for_eslint_json};
 
 fn main() {
     let code = r#"<view>{{ message }}</view>"#;
@@ -93,7 +93,7 @@ npm run build
 npm test
 
 # Rust 侧测试
-cargo test -p wxml-parser
+cargo test -p wxml-parser-rs
 
 # 基准测试
 npm run bench
@@ -136,8 +136,8 @@ npm publish
 ### crates.io
 
 ```bash
-cargo publish --dry-run -p wxml-parser
-cargo publish -p wxml-parser
+cargo publish --dry-run -p wxml-parser-rs
+cargo publish -p wxml-parser-rs
 ```
 
 > `wxml-parser-napi` 仅作为 npm 绑定层，不发布到 crates.io。
@@ -146,7 +146,7 @@ cargo publish -p wxml-parser
 
 ```
 ├── crates/
-│   ├── wxml-parser-core/   # Rust 解析核心（crate 名：wxml-parser）
+│   ├── wxml-parser-core/   # Rust 解析核心（crate 名：wxml-parser-rs）
 │   └── wxml-parser-napi/   # Node-API 绑定层（napi-rs）
 ├── tests/                  # 兼容性测试
 ├── scripts/                # 构建/版本管理脚本
