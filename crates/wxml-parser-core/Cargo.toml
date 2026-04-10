@@ -1,6 +1,6 @@
 [package]
 name = "wxml-parser"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 license = "MIT"
 description = "Core WXML parser implemented in Rust"
@@ -18,9 +18,10 @@ name = "wxml_parser_core"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-regex = { workspace = true }
 thiserror = { workspace = true }
 oxc_allocator = { workspace = true }
 oxc_parser = { workspace = true }
 oxc_span = { workspace = true }
 oxc_ast = { workspace = true }
+itoa = "1"
+smallvec = "1"

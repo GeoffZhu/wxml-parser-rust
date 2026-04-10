@@ -65,9 +65,11 @@ impl<'a> Parser<'a> {
   }
 
   pub(crate) fn make_interpolation_node(&self, typ: &'a str, start: Cursor, end: Cursor, value: &'a str) -> NodeIr<'a> {
+    // raw_value is the entire `{{ ... }}` slice from source — zero-copy
+    let raw_value = self.safe_slice(start.idx, end.idx);
     NodeIr::Interpolation(InterpolationIr {
       typ,
-      raw_value: format!("{{{{{}}}}}", value),
+      raw_value,
       value,
       span: self.make_span(start, end),
     })

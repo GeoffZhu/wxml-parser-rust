@@ -5,16 +5,16 @@ mod cursor;
 mod error;
 mod eslint;
 mod scanner;
-mod ir;
+pub mod ir;
 mod script;
 mod serialize;
 mod syntax;
 
 use cursor::Cursor;
 use ir::{NodeIr, ParsedProgram};
-pub(crate) use serialize::serialize_program;
+pub(crate) use serialize::{serialize_program, serialize_program_to_string};
 
-pub use eslint::parse_for_eslint_json;
+pub use eslint::{parse_for_eslint_json, parse_for_eslint_json_string};
 
 pub(crate) struct Parser<'a> {
   pub(crate) src: &'a str,
@@ -59,11 +59,18 @@ pub fn parse_json(code: &str) -> Value {
   parse_json_with_mode(code, false)
 }
 
+/// Parse WXML and return the result as a JSON string directly,
+/// avoiding the expensive `serde_json::from_str` → Value step.
+/// Use this when the consumer will parse JSON on the JS side (e.g. `JSON.parse()`).
+pub fn parse_json_string(code: &str) -> String {
+  serialize_program_to_string(&parse_program_with_mode(code, false))
+}
+
 pub(crate) fn parse_json_with_mode(code: &str, emit_script_program: bool) -> Value {
   serialize_program(parse_program_with_mode(code, emit_script_program))
 }
 
-pub(crate) fn parse_program_with_mode(code: &str, emit_script_program: bool) -> ParsedProgram<'_> {
+pub fn parse_program_with_mode(code: &str, emit_script_program: bool) -> ParsedProgram<'_> {
   if code.is_empty() {
     return ParsedProgram {
       body: vec![],

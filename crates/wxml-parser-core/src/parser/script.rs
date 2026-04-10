@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
 
     let content_start = self.i;
     let mut end_tag: Option<EndTagIr<'a>> = None;
-    let mut value: Option<&str> = None;
+    let mut value: Option<&'a str> = None;
 
     while self.i < self.bytes.len() {
       if self.starts_with(b"</") {
@@ -88,8 +88,10 @@ impl<'a> Parser<'a> {
           end_tag = Some(self.make_end_tag_ir(saved, end, "wxs"));
           break;
         }
-        // Not a wxs close tag - need to restore position and continue
-        // Actually the original code just bumps past it, so let's do the same
+        // Not a wxs close tag - restore position and continue scanning as wxs content
+        self.i = saved.idx;
+        self.line = saved.line;
+        self.col = saved.col;
       }
       let _ = self.bump();
     }

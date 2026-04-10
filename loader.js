@@ -58,11 +58,13 @@ if (!nativeBinding) {
 const { parse: nativeParse, parseForESLint: nativeParseForESLint } = nativeBinding
 
 function parse(code) {
-  return patchEmptyProgramNaN(nativeParse(code))
+  const jsonStr = nativeParse(code)
+  return patchEmptyProgramNaN(JSON.parse(jsonStr))
 }
 
 function parseForESLint(code) {
-  const result = nativeParseForESLint(code)
+  const jsonStr = nativeParseForESLint(code)
+  const result = JSON.parse(jsonStr)
   if (result && result.ast) patchEmptyProgramNaN(result.ast)
   return result
 }
