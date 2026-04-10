@@ -13,8 +13,6 @@ impl<'a> Parser<'a> {
       if b == b'<' {
         if self.starts_with(b"<!--") {
           out.push(self.parse_comment());
-        } else if self.starts_with(b"{{") {
-          out.push(self.parse_interpolation("WXInterpolation", true));
         } else if self.starts_with(b"</") {
           let rest = self.src.get(self.i + 2..).unwrap_or("");
           let trimmed = rest.trim_start_matches(|c: char| c == ' ' || c == '\t' || c == '\n' || c == '\r');
@@ -28,24 +26,20 @@ impl<'a> Parser<'a> {
             let end = self.pos();
             out.push(self.make_text_node(start, end, "<"));
           }
+        } else if self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'<' {
+          let start = self.pos();
+          self.i += 1;
+          self.col += 1;
+          let end = self.pos();
+          out.push(self.make_text_node(start, end, "<"));
+        } else if let Some(node) = self.try_parse_element_or_wxs() {
+          out.push(node);
         } else {
-          if self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'<' {
-            let start = self.pos();
-            self.i += 1;
-            self.col += 1;
-            let end = self.pos();
-            out.push(self.make_text_node(start, end, "<"));
-            continue;
-          }
-          if let Some(node) = self.try_parse_element_or_wxs() {
-            out.push(node);
-          } else {
-            let start = self.pos();
-            self.i += 1;
-            self.col += 1;
-            let end = self.pos();
-            out.push(self.make_text_node(start, end, "<"));
-          }
+          let start = self.pos();
+          self.i += 1;
+          self.col += 1;
+          let end = self.pos();
+          out.push(self.make_text_node(start, end, "<"));
         }
       } else if self.starts_with(b"{{") {
         out.push(self.parse_interpolation("WXInterpolation", true));
@@ -60,25 +54,26 @@ impl<'a> Parser<'a> {
     let start = self.pos();
     let seg_start = self.i;
 
+    if self.i >= self.bytes.len() {
+      return self.make_text_node(start, start, "");
+    }
+
     let first = unsafe { *self.bytes.get_unchecked(self.i) };
     if matches!(first, b' ' | b'\t' | b'\n' | b'\r') {
+      // whitespace-only run
       while self.i < self.bytes.len() {
         match unsafe { *self.bytes.get_unchecked(self.i) } {
-          b' ' | b'\t' | b'\n' | b'\r' => {
-            let _ = self.bump();
-          }
+          b' ' | b'\t' | b'\n' | b'\r' => { let _ = self.bump(); }
           _ => break,
         }
       }
     } else {
+      // non-whitespace text: stop at < or {{ or newline
       while self.i < self.bytes.len() {
         let b = unsafe { *self.bytes.get_unchecked(self.i) };
-        if b == b'<' || (b == b'{' && self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'{') {
-          break;
-        }
-        if b == b'\n' || b == b'\r' {
-          break;
-        }
+        if b == b'<' { break; }
+        if b == b'{' && self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'{' { break; }
+        if b == b'\n' || b == b'\r' { break; }
         let _ = self.bump();
       }
     }
@@ -130,6 +125,60 @@ impl<'a> Parser<'a> {
     self.make_interpolation_node(typ, start, end, body)
   }
 
+  /// Parse attribute value with the opening quote already consumed.
+  fn parse_attr_value_with_quote_inner(&mut self, quote: u8) -> AttrValueParts<'a> {
+    let quote_str: &'a str = if quote == b'\'' { "'" } else { "\"" };
+    let mut children = vec![];
+    let mut interpolations = vec![];
+    let mut value = String::new();
+
+    loop {
+      if self.i >= self.bytes.len() { break; }
+      let ch = unsafe { *self.bytes.get_unchecked(self.i) };
+      if ch == quote {
+        self.i += 1;
+        self.col += 1;
+        break;
+      }
+      if ch == b'{' && self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'{' {
+        let node = self.parse_interpolation("WXAttributeInterpolation", false);
+        if let NodeIr::Interpolation(ref interp) = &node {
+          value.push_str(&interp.raw_value);
+          interpolations.push(interp.clone());
+        }
+        children.push(node);
+      } else {
+        let seg_start_cursor = self.pos();
+        let seg_start = self.i;
+        while self.i < self.bytes.len() {
+          let b = unsafe { *self.bytes.get_unchecked(self.i) };
+          if b == quote { break; }
+          if b == b'{' && self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'{' { break; }
+          let _ = self.bump();
+        }
+        let seg_end = self.pos();
+        let seg = self.safe_slice(seg_start, self.i);
+        if !seg.is_empty() {
+          value.push_str(seg);
+          children.push(self.make_text_node(seg_start_cursor, seg_end, seg));
+        }
+      }
+    }
+
+    let mut raw_value = String::with_capacity(value.len() + 2);
+    raw_value.push(quote as char);
+    raw_value.push_str(&value);
+    raw_value.push(quote as char);
+
+    AttrValueParts {
+      quote: quote_str,
+      raw_value,
+      value,
+      children,
+      interpolations,
+    }
+  }
+
   pub(crate) fn parse_attribute(&mut self) -> Option<AttributeIr<'a>> {
     self.skip_ws();
     let start = self.pos();
@@ -149,10 +198,9 @@ impl<'a> Parser<'a> {
       if self.i < self.bytes.len() {
         let ch = unsafe { *self.bytes.get_unchecked(self.i) };
         if ch == b'\'' || ch == b'"' {
-          let q = ch;
           self.i += 1;
           self.col += 1;
-          let v = self.parse_attr_value_with_quote_inner(q);
+          let v = self.parse_attr_value_with_quote_inner(ch);
           quote = Some(v.quote);
           value = Some(v.value);
           raw_value = Some(v.raw_value);
@@ -169,68 +217,7 @@ impl<'a> Parser<'a> {
     }
 
     let end = self.pos();
-    Some(self.make_attribute_ir(
-      start,
-      end,
-      key,
-      quote,
-      value,
-      raw_value,
-      children,
-      interpolations,
-    ))
-  }
-
-  /// Inner function that knows the quote char as a static str.
-  fn parse_attr_value_with_quote_inner(&mut self, quote: u8) -> AttrValueParts<'a> {
-    let quote_str = if quote == b'\'' { "'" } else { "\"" };
-    let mut children = vec![];
-    let mut interpolations = vec![];
-    let mut value = String::new();
-
-    loop {
-      if self.i >= self.bytes.len() {
-        break;
-      }
-      let ch = unsafe { *self.bytes.get_unchecked(self.i) };
-      if ch == quote {
-        self.i += 1;
-        self.col += 1;
-        break;
-      }
-      if ch == b'{' && self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'{' {
-        let node = self.parse_interpolation("WXAttributeInterpolation", false);
-        if let NodeIr::Interpolation(ref interpolation) = &node {
-          value.push_str(&interpolation.raw_value);
-          interpolations.push(interpolation.clone());
-        }
-        children.push(node);
-      } else {
-        let seg_start_cursor = self.pos();
-        let seg_start = self.i;
-        while self.i < self.bytes.len() {
-          let b = unsafe { *self.bytes.get_unchecked(self.i) };
-          if b == quote || (b == b'{' && self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'{') {
-            break;
-          }
-          let _ = self.bump();
-        }
-        let seg_end = self.pos();
-        let seg = self.safe_slice(seg_start, self.i);
-        if !seg.is_empty() {
-          value.push_str(seg);
-          children.push(self.make_text_node(seg_start_cursor, seg_end, seg));
-        }
-      }
-    }
-
-    AttrValueParts {
-      quote: quote_str,
-      raw_value: format!("{}{}{}", quote_str, value, quote_str),
-      value,
-      children,
-      interpolations,
-    }
+    Some(self.make_attribute_ir(start, end, key, quote, value, raw_value, children, interpolations))
   }
 
   pub(crate) fn parse_end_tag(&mut self) -> Option<EndTagIr<'a>> {
@@ -261,7 +248,7 @@ impl<'a> Parser<'a> {
     let backup = self.pos();
     let start = self.pos();
     self.i += 1;
-    self.col += 1;
+    self.col += 1; // skip '<'
     self.skip_ws();
 
     if self.i < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i) } == b'/' {
@@ -323,13 +310,7 @@ impl<'a> Parser<'a> {
 
     let start_tag_end = self.pos();
     let start_tag: Option<StartTagIr<'a>> = if start_tag_valid {
-      Some(self.make_start_tag_ir(
-        start,
-        start_tag_end,
-        name,
-        attributes,
-        self_closing,
-      ))
+      Some(self.make_start_tag_ir(start, start_tag_end, name, attributes, self_closing))
     } else {
       None
     };
@@ -364,15 +345,12 @@ impl<'a> Parser<'a> {
         if b == b'<' {
           if self.starts_with(b"<!--") {
             children.push(self.parse_comment());
-          } else if self.starts_with(b"{{") {
-            children.push(self.parse_interpolation("WXInterpolation", true));
           } else if self.i + 1 < self.bytes.len() && unsafe { *self.bytes.get_unchecked(self.i + 1) } == b'<' {
             let s = self.pos();
             self.i += 1;
             self.col += 1;
             let e = self.pos();
             children.push(self.make_text_node(s, e, "<"));
-            continue;
           } else if let Some(node) = self.try_parse_element_or_wxs() {
             children.push(node);
           } else {
@@ -382,6 +360,8 @@ impl<'a> Parser<'a> {
             let e = self.pos();
             children.push(self.make_text_node(s, e, "<"));
           }
+        } else if self.starts_with(b"{{") {
+          children.push(self.parse_interpolation("WXInterpolation", true));
         } else {
           children.push(self.parse_text());
         }

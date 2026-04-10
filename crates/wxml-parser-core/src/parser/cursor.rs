@@ -9,16 +9,19 @@ pub(crate) struct Cursor {
 
 impl<'a> Parser<'a> {
   #[inline(always)]
+  #[allow(dead_code)]
   pub(crate) fn eof(&self) -> bool {
     self.i >= self.bytes.len()
   }
 
   #[inline(always)]
+  #[allow(dead_code)]
   pub(crate) fn cur(&self) -> Option<u8> {
     unsafe { Some(*self.bytes.get_unchecked(self.i)) }
   }
 
   #[inline(always)]
+  #[allow(dead_code)]
   pub(crate) fn peek(&self, offset: usize) -> Option<u8> {
     self.bytes.get(self.i + offset).copied()
   }
@@ -113,6 +116,7 @@ impl<'a> Parser<'a> {
     self.i += s.len();
   }
 
+  #[allow(dead_code)]
   pub(crate) fn bump_n(&mut self, n: usize) {
     for _ in 0..n {
       let _ = self.bump();

@@ -20,3 +20,8 @@ oxc_allocator = "0.124"
 oxc_parser = "0.124"
 oxc_span = "0.124"
 oxc_ast = "0.124"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

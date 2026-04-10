@@ -1,6 +1,6 @@
 {
   "name": "wxml-parser-rust",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Rust + napi-rs implementation of @wxml/parser",
   "license": "MIT",
   "type": "commonjs",
@@ -32,7 +32,8 @@
     "build:ci": "npm run build",
     "test": "mocha tests/ --require chai --bail --check-leaks",
     "bench": "node tests/benchmark/perf.js",
-    "prepublishOnly": "npm run build:multi && npm test && npm pack --dry-run"
+    "prepublishOnly": "npm run build:multi && npm test && npm pack --dry-run",
+    "version:bump": "node scripts/bump-version.js"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4",

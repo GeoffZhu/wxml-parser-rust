@@ -1,6 +1,6 @@
 [package]
 name = "wxml-parser-napi"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 license = "MIT"
 description = "Node-API bindings for wxml-parser-core"
@@ -17,7 +17,11 @@ crate-type = ["cdylib"]
 napi = { version = "2", features = ["serde-json"] }
 napi-derive = "2"
 serde_json = { workspace = true }
-wxml_parser_core = { package = "wxml-parser", version = "0.1.0", path = "../wxml-parser-core" }
+wxml_parser_core = { package = "wxml-parser", version = "0.0.1", path = "../wxml-parser-core" }
+
+[features]
+default = []
+buffer = []
 
 [build-dependencies]
 napi-build = "2"

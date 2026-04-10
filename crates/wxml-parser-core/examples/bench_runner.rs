@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use std::env;
 use std::fs;
 use std::time::Instant;
-use wxml_parser_core::{parse_for_eslint_json, parse_json};
+use wxml_parser_core::{parse_for_eslint_json, parse_for_eslint_json_string, parse_json, parse_json_string};
 
 fn summarize_parse(result: &Value) -> Value {
   json!({
@@ -75,12 +75,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     _ => unreachable!(),
   };
 
+  let runner_string: fn(&str) -> String = match mode.as_str() {
+    "parse" => parse_json_string,
+    "parseForESLint" => parse_for_eslint_json_string,
+    _ => unreachable!(),
+  };
+
   let baseline = runner(&code);
   let summary = summarize(&baseline);
 
+  // Benchmark the string-return path (no serde_json::Value construction)
   for _ in 0..warmup {
     for _ in 0..iterations {
-      let result = runner(&code);
+      let result = runner_string(&code);
       std::hint::black_box(result);
     }
   }
@@ -89,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   for _ in 0..rounds {
     let start = Instant::now();
     for _ in 0..iterations {
-      let result = runner(&code);
+      let result = runner_string(&code);
       std::hint::black_box(result);
     }
     round_ns.push(start.elapsed().as_nanos() as f64);
