@@ -21,9 +21,6 @@
   "engines": {
     "node": ">=18"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "napi build --platform --release --cargo-cwd crates/wxml-parser-napi bindings && mv bindings/index.d.ts . && rm -f bindings/index.js",
     "build:debug": "napi build --platform --cargo-cwd crates/wxml-parser-napi bindings && mv bindings/index.d.ts . && rm -f bindings/index.js",
@@ -42,5 +39,14 @@
     "esquery": "^1.4.0",
     "lodash": "^4.17.21",
     "mocha": "^9.1.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GeoffZhu/wxml-parser-rust.git"
+  },
+  "publishConfig": {
+		"registry": "https://registry.npmjs.org",
+		"access": "public",
+		"provenance": true
+	}
 }
