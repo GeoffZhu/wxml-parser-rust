@@ -14,7 +14,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "2", features = ["serde-json"] }
+napi = { version = "3", features = ["serde-json"] }
 napi-derive = "2"
 serde_json = { workspace = true }
 wxml_parser_rs = { package = "wxml-parser-rs", version = "0.0.2", path = "../wxml-parser-core" }
